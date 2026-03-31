@@ -1,56 +1,65 @@
-const UserMemory = require("../models/UserMemory");
+const fetch = require("node-fetch");
 
-async function getAIResponse(userId, message, jobs) {
+const memory = {};
 
-  const msg = message.toLowerCase();
+async function getAIResponse(userId, message, jobs = []) {
+  try {
 
-  // 🔍 memory load
-  let memory = await UserMemory.findOne({ userId });
+    // 🧠 memory store
+    if (!memory[userId]) memory[userId] = [];
+    memory[userId].push({ role: "user", content: message });
 
-  if (!memory) {
-    memory = new UserMemory({ userId });
-  }
+    // 🧾 jobs context
+    let jobsText = "";
+    if (jobs.length > 0) {
+      jobsText = jobs.map(j =>
+        `${j.title} in ${j.location || "India"}`
+      ).join(", ");
+    }
 
-  // 🔍 extract role
-  if (msg.includes("customer") || msg.includes("support")) {
-    memory.role = "customer support";
-  }
+    // 🤖 API call (Groq)
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: `
+You are DB Job GPT.
 
-  if (msg.includes("sales")) {
-    memory.role = "sales";
-  }
+Rules:
+- Talk like a friendly recruiter
+- Give short smart answers
+- Don't repeat questions
+- Use job data if available
+- Suggest next step
 
-  // 🔍 extract location
-  if (msg.includes("bhopal")) memory.location = "bhopal";
-  if (msg.includes("indore")) memory.location = "indore";
-
-  // 💾 save memory
-  await memory.save();
-
-  // 🔥 अगर jobs हैं → show
-  if (jobs && jobs.length > 0) {
-    let reply = "🔥 Yeh jobs mili hain:\n\n";
-
-    jobs.forEach((job, i) => {
-      reply += `${i + 1}. ${job.title}
-🏢 ${job.company}
-📍 ${job.location}
-💰 ${job.salary || "N/A"}\n\n`;
+Jobs available:
+${jobsText}
+`
+          },
+          ...memory[userId].slice(-5) // last 5 messages
+        ]
+      })
     });
 
+    const data = await res.json();
+
+    const reply = data?.choices?.[0]?.message?.content || "Try again";
+
+    memory[userId].push({ role: "assistant", content: reply });
+
     return reply;
-  }
 
-  // 🔥 smart questions (NO repeat)
-  if (!memory.role) {
-    return "Kaunsa role chahiye? (customer support, sales)";
+  } catch (err) {
+    console.log(err);
+    return "AI error ❌";
   }
-
-  if (!memory.location) {
-    return "Kaunsi location chahiye? (Bhopal, Indore)";
-  }
-
-  return "Searching jobs for you 🔍...";
 }
 
 module.exports = getAIResponse;
