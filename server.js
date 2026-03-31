@@ -4,6 +4,8 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 
+const Job = require("./models/Job")
+
 const app = express();
 
 // 🔹 Middleware
