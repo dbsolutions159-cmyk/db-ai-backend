@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - DB Job GPT</title>
+
+<style>
+body{
+  font-family: Arial;
+  background:#0f172a;
+  color:white;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+
+.container{
+  width:90%;
+  max-width:400px;
+}
+
+h2{
+  margin-bottom:20px;
+}
+
+input{
+  width:100%;
+  padding:12px;
+  margin-bottom:10px;
+  border:none;
+  border-radius:10px;
+  background:#1e293b;
+  color:white;
+}
+
+button{
+  width:100%;
+  padding:12px;
+  background:#22c55e;
+  border:none;
+  border-radius:10px;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+button:hover{
+  background:#16a34a;
+}
+
+.msg{
+  margin-top:10px;
+  font-size:14px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>➕ Add Job</h2>
+
+  <input id="title" placeholder="Job Title">
+  <input id="company" placeholder="Company">
+  <input id="location" placeholder="Location">
+  <input id="salary" placeholder="Salary">
+
+  <button onclick="addJob()">Add Job</button>
+
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+
+// ⚠️ IMPORTANT → agar deploy kiya hai to URL change karo
+const API_URL = "http://localhost:3000/api/jobs";
+// example: https://your-backend.onrender.com/api/jobs
+
+async function addJob(){
+  const title = document.getElementById("title").value;
+  const company = document.getElementById("company").value;
+  const location = document.getElementById("location").value;
+  const salary = document.getElementById("salary").value;
+
+  const msg = document.getElementById("msg");
+
+  if(!title || !company){
+    msg.innerHTML = "❌ Title & Company required";
+    return;
+  }
+
+  try{
+    const res = await fetch(API_URL,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json"
+      },
+      body: JSON.stringify({
+        title,
+        company,
+        location,
+        salary
+      })
+    });
+
+    const data = await res.json();
+
+    if(res.ok){
+      msg.innerHTML = "✅ Job Added Successfully";
+      
+      // clear inputs
+      document.getElementById("title").value="";
+      document.getElementById("company").value="";
+      document.getElementById("location").value="";
+      document.getElementById("salary").value="";
+    }else{
+      msg.innerHTML = "❌ " + data.error;
+    }
+
+  }catch(err){
+    console.log(err);
+    msg.innerHTML = "❌ Server error";
+  }
+}
+
+</script>
+
+</body>
+</html>
