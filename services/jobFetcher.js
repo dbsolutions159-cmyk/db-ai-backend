@@ -1,28 +1,34 @@
-const fetch = require("node-fetch");
-const saveJobs = require("./saveJobs");
+// 🔥 SAFE VERSION (no external API)
+const Job = require("../models/job");
 
 const fetchJobs = async () => {
   try {
-    console.log("⏳ Fetching jobs from API...");
+    console.log("Fetching jobs (dummy)...");
 
-    const url = "https://jsearch.p.rapidapi.com/search?query=developer jobs in india&page=1&num_pages=1";
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-rapidapi-key": process.env.RAPID_API_KEY,
-        "x-rapidapi-host": "jsearch.p.rapidapi.com"
+    // Dummy job insert (test purpose)
+    const sampleJobs = [
+      {
+        title: "Customer Support Executive",
+        company: "Demo Company",
+        location: "Bhopal",
+        salary: "20k-25k"
+      },
+      {
+        title: "Sales Executive",
+        company: "Demo Company",
+        location: "Indore",
+        salary: "18k-22k"
       }
-    });
+    ];
 
-    const data = await response.json();
+    for (let job of sampleJobs) {
+      await Job.create(job);
+    }
 
-    console.log("✅ API Data Fetched");
-
-    await saveJobs(data);
+    console.log("Jobs inserted ✅");
 
   } catch (err) {
-    console.log("❌ Job fetch error:", err.message);
+    console.log("Job Fetch Error:", err);
   }
 };
 
