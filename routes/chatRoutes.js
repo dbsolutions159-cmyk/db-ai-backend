@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const fetch = require("node-fetch"); // अगर Node < 18
+const fetch = require("node-fetch"); // Node < 18 के लिए
 
 router.post("/", async (req, res) => {
   try {
@@ -22,7 +22,7 @@ router.post("/", async (req, res) => {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
+          model: "llama-3.3-70b-versatile", // 🔥 updated stable model
           messages: [
             {
               role: "system",
@@ -35,6 +35,16 @@ router.post("/", async (req, res) => {
           ]
         })
       });
+
+      // 🔥 IMPORTANT: API STATUS CHECK
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.log("API ERROR:", errText);
+
+        return res.json({
+          reply: "⚠ AI service error (check backend logs)"
+        });
+      }
 
       const data = await aiRes.json();
 
