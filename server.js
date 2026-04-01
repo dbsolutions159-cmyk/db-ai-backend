@@ -33,9 +33,14 @@ mongoose.connect(process.env.MONGO_URI)
     console.log("MongoDB Connected ✅");
 
     // 🔥 FIRST TIME JOB FETCH
+  setTimeout(async () => {
+  try {
     await fetchJobs();
-
-  })
+    console.log("🔥 Initial jobs fetched");
+  } catch (err) {
+    console.log("❌ Job fetch error:", err.message);
+  }
+}, 5000);
   .catch(err => console.log("Mongo Error ❌", err.message));
 
 // 🔹 AUTO JOB FETCH (हर 6 घंटे)
