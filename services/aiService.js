@@ -4,6 +4,8 @@ async function getAIResponse(userId, message){
 
   try{
 
+    console.log("AI Request:", message);
+
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -15,34 +17,7 @@ async function getAIResponse(userId, message){
         messages: [
           {
             role: "system",
-            content: `
-You are DB Hire AI — a professional career assistant.
-
-RULES:
-- Speak like expert + friendly
-- Give structured answers
-- No repeat questions
-- No short useless replies
-- Always provide value
-
-FOR RESUME:
-- Write full professional resume
-- Minimum 6-10 lines
-- Proper sections:
-  Name, Skills, Experience, Summary
-
-FOR JOB:
-- Suggest best jobs
-- Explain why match
-
-FOR INTERVIEW:
-- Ask smart questions
-- Give feedback + score
-
-Tone:
-- Professional but friendly
-- Clear and helpful
-`
+            content: "You are a smart professional career assistant. Give clear, helpful answers."
           },
           {
             role: "user",
@@ -54,10 +29,17 @@ Tone:
 
     const data = await res.json();
 
-    return data?.choices?.[0]?.message?.content || "AI error";
+    // 🔥 DEBUG
+    console.log("AI RAW:", data);
+
+    if(!data || !data.choices){
+      return "AI not responding properly ❌";
+    }
+
+    return data.choices[0].message.content;
 
   }catch(err){
-    console.log("AI ERROR:", err.message);
+    console.log("AI ERROR FULL:", err.message);
     return "AI error ❌";
   }
 }
