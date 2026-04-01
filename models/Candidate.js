@@ -1,15 +1,25 @@
-Pconst mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 const candidateSchema = new mongoose.Schema({
-  name: String,
-  phone: String,
-  skills: [String],
-  experience: String,
-  location: String,
+  name: {
+    type: String,
+  },
+  phone: {
+    type: String,
+  },
+  skills: {
+    type: [String],
+  },
+  experience: {
+    type: String,
+  },
+  location: {
+    type: String,
+  },
   createdAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 module.exports = mongoose.model("Candidate", candidateSchema);
