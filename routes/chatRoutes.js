@@ -22,7 +22,7 @@ function getMemory(userId){
 
 // ================= INTENT =================
 function detectIntent(msg){
-  msg = msg.toLowerCase();
+  msg = (msg || "").toLowerCase();
   if(msg.includes("job")) return "job";
   if(msg.includes("resume")) return "resume";
   if(msg.includes("interview")) return "interview";
@@ -33,39 +33,46 @@ function detectIntent(msg){
 // ================= CHAT =================
 router.post("/chat", async (req, res) => {
 
-  const { message, userId = "user1" } = req.body;
-  const memory = getMemory(userId);
+  try{
 
-  memory.lastAnswer = message;
+    const { message, userId = "user1" } = req.body;
 
-  const intent = detectIntent(message);
-  if(intent !== "chat") memory.intent = intent;
-
-  const activeIntent = memory.intent;
-
-  // ================= RESUME BUILDER =================
-  if(activeIntent === "resume"){
-
-    memory.resume.step++;
-
-    if(memory.resume.step === 1){
-      return res.json({ reply: "Let’s build your resume 👍\nWhat is your full name?" });
+    if(!message){
+      return res.json({ reply: "Message required ❌" });
     }
 
-    if(memory.resume.step === 2){
-      memory.resume.name = message;
-      return res.json({ reply: "Your skills?" });
-    }
+    console.log("Incoming:", message);
 
-    if(memory.resume.step === 3){
-      memory.resume.skills = message;
-      return res.json({ reply: "Your experience?" });
-    }
+    const memory = getMemory(userId);
 
-    if(memory.resume.step === 4){
-      memory.resume.experience = message;
+    const intent = detectIntent(message);
+    if(intent !== "chat") memory.intent = intent;
 
-      const resumeText = `
+    const activeIntent = memory.intent;
+
+    // ================= RESUME BUILDER =================
+    if(activeIntent === "resume"){
+
+      memory.resume.step++;
+
+      if(memory.resume.step === 1){
+        return res.json({ reply: "Let’s build your resume 👍\nWhat is your full name?" });
+      }
+
+      if(memory.resume.step === 2){
+        memory.resume.name = message;
+        return res.json({ reply: "Your skills?" });
+      }
+
+      if(memory.resume.step === 3){
+        memory.resume.skills = message;
+        return res.json({ reply: "Your experience?" });
+      }
+
+      if(memory.resume.step === 4){
+        memory.resume.experience = message;
+
+        const resumeText = `
 Name: ${memory.resume.name}
 
 Skills:
@@ -75,75 +82,92 @@ Experience:
 ${memory.resume.experience}
 `;
 
-      memory.resume.step = 0;
+        memory.resume.step = 0;
 
-      return res.json({
-        reply: "Resume ready 👇 Download below",
-        resume: resumeText
-      });
-    }
-  }
-
-  // ================= INTERVIEW =================
-  if(activeIntent === "mock"){
-
-    if(!memory.role){
-      if(message.toLowerCase().includes("customer")) memory.role = "Customer Support";
-      return res.json({ reply: "Which role for interview?" });
+        return res.json({
+          reply: "Resume ready 👇 Download below",
+          resume: resumeText
+        });
+      }
     }
 
-    memory.step++;
+    // ================= MOCK INTERVIEW =================
+    if(activeIntent === "mock"){
 
-    if(memory.step > 5){
-      memory.step = 0;
-      return res.json({ reply: "Interview complete 🎉" });
-    }
+      if(!memory.role){
+        memory.role = message;
+        return res.json({ reply: "Starting interview 👍\nTell me about yourself" });
+      }
 
-    // 🔥 SCORING
-    const scorePrompt = `
+      memory.step++;
+
+      if(memory.step > 5){
+        memory.step = 0;
+        memory.role = null;
+        return res.json({ reply: "Interview complete 🎉" });
+      }
+
+      const scorePrompt = `
 Evaluate this answer:
 
-"${memory.lastAnswer}"
+"${message}"
 
 Give:
 - Score /10
 - 1 improvement
 `;
 
-    const feedback = await getAIResponse(userId, scorePrompt);
+      let feedback = await getAIResponse(userId, scorePrompt);
+      let nextQ = await getAIResponse(userId, `Ask next interview question for ${memory.role}`);
 
-    // 🔥 NEXT QUESTION
-    const nextQ = await getAIResponse(userId, `Ask next interview question for ${memory.role}`);
+      return res.json({
+        reply: `${feedback}\n\nNext 👇\n${nextQ}`
+      });
+    }
+
+    // ================= NORMAL CHAT =================
+    let aiReply = await getAIResponse(userId, message);
+
+    console.log("AI:", aiReply);
 
     return res.json({
-      reply: `${feedback}\n\nNext 👇\n${nextQ}`
+      reply: aiReply || "No response 🤖"
+    });
+
+  }catch(err){
+    console.log("CHAT ERROR:", err.message);
+    return res.json({
+      reply: "Server error ❌ try again"
     });
   }
-
-  // ================= CHAT =================
-  const aiReply = await getAIResponse(userId, message);
-
-  return res.json({ reply: aiReply });
 
 });
 
 // ================= PDF DOWNLOAD =================
 router.post("/download-resume", (req, res) => {
 
-  const { resume } = req.body;
+  try{
 
-  const doc = new PDFDocument();
+    const { resume } = req.body;
 
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", "attachment; filename=resume.pdf");
+    const doc = new PDFDocument();
 
-  doc.pipe(res);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=resume.pdf");
 
-  doc.fontSize(18).text("Resume", { align: "center" });
-  doc.moveDown();
-  doc.fontSize(12).text(resume);
+    doc.pipe(res);
 
-  doc.end();
+    doc.fontSize(18).text("Resume", { align: "center" });
+    doc.moveDown();
+    doc.fontSize(12).text(resume || "No data");
+
+    doc.end();
+
+  }catch(err){
+    console.log("PDF ERROR:", err.message);
+    res.status(500).send("PDF Error");
+  }
+
 });
 
 module.exports = router;
