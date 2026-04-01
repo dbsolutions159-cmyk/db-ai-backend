@@ -13,7 +13,7 @@ async function getAIResponse(userId, message){
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "mixtral-8x7b-32768",
+        model: "llama3-8b-8192",
         messages: [
           {
             role: "system",
