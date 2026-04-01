@@ -14,7 +14,7 @@ function getMemory(userId){
       experience: null,
       intent: null,
       step: 0,
-      lastAction: null,
+      lastQuestion: null,
       lastAnswer: null
     };
   }
@@ -27,15 +27,9 @@ function updateMemory(memory, message){
   const msg = message.toLowerCase();
 
   // ROLE
-  if(msg.includes("bpo") || msg.includes("customer")){
-    memory.role = "customer support";
-  }
-  if(msg.includes("sales")){
-    memory.role = "sales";
-  }
-  if(msg.includes("developer")){
-    memory.role = "developer";
-  }
+  if(msg.includes("bpo") || msg.includes("customer")) memory.role = "customer support";
+  if(msg.includes("sales")) memory.role = "sales";
+  if(msg.includes("developer")) memory.role = "developer";
 
   // LOCATION
   if(msg.includes("bhopal")) memory.location = "bhopal";
@@ -58,7 +52,7 @@ function detectIntent(msg){
   if(msg.includes("interview")) return "interview";
   if(msg.includes("mock")) return "mock";
 
-  return "general";
+  return "chat";
 }
 
 // ================= CHAT API =================
@@ -73,33 +67,28 @@ router.post("/chat", async (req, res) => {
     }
 
     const memory = getMemory(userId);
+
+    // 🔄 update memory
     updateMemory(memory, message);
 
+    // 🎯 intent detect
     const intent = detectIntent(message);
-    memory.intent = intent;
 
-    // ================= NO REPEAT =================
-    if(memory.lastAction === "ask_role" && memory.role){
-      memory.lastAction = null;
+    if(intent !== "chat"){
+      memory.intent = intent;
     }
 
-    if(memory.lastAction === "ask_location" && memory.location){
-      memory.lastAction = null;
-    }
+    const activeIntent = memory.intent;
 
     // ================= JOB =================
-    if(intent === "job" || memory.intent === "job"){
-
-      memory.intent = "job";
+    if(activeIntent === "job"){
 
       if(!memory.role){
-        memory.lastAction = "ask_role";
-        return res.json({ reply: "Kis role me job chahiye?" });
+        return res.json({ reply: "Which role are you looking for?" });
       }
 
       if(!memory.location){
-        memory.lastAction = "ask_location";
-        return res.json({ reply: "Kis city me job chahiye?" });
+        return res.json({ reply: "Which city do you prefer?" });
       }
 
       let query = {
@@ -114,79 +103,91 @@ router.post("/chat", async (req, res) => {
       }
 
       return res.json({
-        reply: `🔥 ${memory.location} me ${memory.role} jobs mil gayi`,
+        reply: `Found some ${memory.role} roles in ${memory.location} 👍`,
         jobs
       });
     }
 
     // ================= RESUME =================
-    if(intent === "resume"){
+    if(activeIntent === "resume"){
       return res.json({
-        reply: "Perfect 👍 apna naam, skills aur experience bhejo"
+        reply: "Sure 👍 Please share your name, skills, and experience."
       });
     }
 
     // ================= INTERVIEW =================
-    if(intent === "interview"){
+    if(activeIntent === "interview"){
 
       if(!memory.role){
-        memory.lastAction = "ask_role";
-        return res.json({ reply: "Kis role ke liye interview hai?" });
+        return res.json({ reply: "Which role is the interview for?" });
       }
 
-      return res.json({
-        reply: `Great 👍 ${memory.role} interview ke liye ready ho jao.
+      memory.step = 1;
 
-👉 Tell me about yourself`
+      return res.json({
+        reply: `Great 👍 Let’s begin.\n\nTell me about yourself.`
       });
     }
 
-    // ================= 🔥 AI MOCK INTERVIEW =================
-    if(intent === "mock" || memory.intent === "mock"){
-
-      memory.intent = "mock";
+    // ================= MOCK INTERVIEW =================
+    if(activeIntent === "mock"){
 
       if(!memory.role){
-        memory.lastAction = "ask_role";
-        return res.json({ reply: "Kis role ke liye mock interview dena hai?" });
+        return res.json({ reply: "Which role should I take the mock interview for?" });
       }
 
       memory.step = (memory.step || 0) + 1;
 
-      if(memory.step > 5){
+      if(memory.step > 6){
         memory.step = 0;
         return res.json({
-          reply: "Interview complete 🎉 Great job!"
+          reply: "Interview complete 🎉 Well done."
         });
       }
 
       const prompt = `
 You are a professional interviewer.
 
-Take a mock interview for:
 Role: ${memory.role}
 Experience: ${memory.experience || "unknown"}
 
 Rules:
 - Ask only ONE question
-- Don't repeat questions
-- Start basic → then advanced
-- Make it realistic (HR + practical)
-- Ask based on previous answer
+- Keep it short
+- No repetition
+- Professional + friendly tone
+- Ask next logical question
+- Don't explain too much
 
-Question number: ${memory.step}
-User last answer: ${memory.lastAnswer || "none"}
+Previous question: ${memory.lastQuestion || "none"}
+User answer: ${memory.lastAnswer || "none"}
+
+Now ask next question.
 `;
 
       const aiReply = await getAIResponse(userId, prompt);
+
+      memory.lastQuestion = aiReply;
 
       return res.json({
         reply: aiReply
       });
     }
 
-    // ================= AI FALLBACK =================
-    const aiReply = await getAIResponse(userId, message);
+    // ================= SMART CHAT =================
+    const prompt = `
+You are DB GPT — Professional AI Career Assistant.
+
+Tone:
+- Professional + friendly
+- Short answers (max 2–3 lines)
+- Smart and clear
+- No long explanation
+
+User: ${message}
+`;
+
+    const aiReply = await getAIResponse(userId, prompt);
 
     return res.json({
       reply: aiReply
