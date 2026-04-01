@@ -1,57 +1,29 @@
 const axios = require("axios");
 const Job = require("../models/job");
 
-// 🔹 Duplicate key generator
-function createKey(title, company, location){
-  return `${title}-${company}-${location}`.toLowerCase();
-}
-
-// 🔹 Basic skill extractor
-function extractSkills(text){
-  const skillsList = [
-    "react","node","javascript","python","java","html","css","mongodb"
-  ];
-
-  return skillsList.filter(skill =>
-    text.toLowerCase().includes(skill)
-  );
-}
-
-// ================= MAIN FUNCTION =================
 const fetchJobs = async () => {
   try {
 
     console.log("🔥 Fetching jobs from Adzuna...");
 
-    const res = await axios.get(
-      "https://api.adzuna.com/v1/api/jobs/in/search/1",
-      {
-        params: {
-          app_id: process.env.ADZUNA_APP_ID,
-          app_key: process.env.ADZUNA_APP_KEY,
-          results_per_page: 20,
-          what: "developer",
-          where: "india"
-        }
-      }
-    );
+    const APP_ID = process.env.ADZUNA_APP_ID;
+    const APP_KEY = process.env.ADZUNA_APP_KEY;
+
+    // 🔥 DEBUG
+    console.log("APP_ID:", APP_ID);
+    console.log("APP_KEY:", APP_KEY ? "Loaded ✅" : "Missing ❌");
+
+    const url = `https://api.adzuna.com/v1/api/jobs/in/search/1?app_id=${APP_ID}&app_key=${APP_KEY}&results_per_page=20&what=developer&where=india`;
+
+    const res = await axios.get(url);
 
     const jobs = res.data.results || [];
 
-    let count = 0;
+    console.log("Jobs fetched:", jobs.length);
+
+    await Job.deleteMany({}); // साफ DB
 
     for (let j of jobs) {
-
-      const key = createKey(
-        j.title,
-        j.company.display_name,
-        j.location.display_name
-      );
-
-      // 🔥 duplicate check
-      const exists = await Job.findOne({ source: key });
-      if (exists) continue;
-
       await Job.create({
         title: j.title,
         company: j.company.display_name,
@@ -61,17 +33,14 @@ const fetchJobs = async () => {
         salary: j.salary_min
           ? `${j.salary_min} - ${j.salary_max}`
           : "Not disclosed",
-        skills: extractSkills(j.description),
-        source: key
+        source: "adzuna"
       });
-
-      count++;
     }
 
-    console.log(`✅ New jobs saved: ${count}`);
+    console.log("✅ Jobs saved:", jobs.length);
 
   } catch (err) {
-    console.log("❌ Job Fetch Error:", err.message);
+    console.log("❌ FULL ERROR:", err.response?.data || err.message);
   }
 };
 
