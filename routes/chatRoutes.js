@@ -7,6 +7,7 @@ router.post("/", async (req, res) => {
     const { message } = req.body;
 
     console.log("User:", message);
+    console.log("🔥 API HIT");
 
     if (!message) {
       return res.json({ reply: "Message missing" });
