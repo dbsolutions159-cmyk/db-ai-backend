@@ -1,16 +1,7 @@
 const fetch = require("node-fetch");
 
-async function getAIResponse(userId, message){
-
-  try{
-
-    // ✅ API KEY CHECK
-    if(!process.env.GROQ_API_KEY){
-      console.log("❌ API KEY MISSING");
-      return "API key missing ❌";
-    }
-
-    // 🚀 API CALL
+async function getAIResponse(userId, message) {
+  try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -18,63 +9,46 @@ async function getAIResponse(userId, message){
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192", // ✅ stable model
-        temperature: 0.7,
+        model: "llama3-70b-8192", // ✅ WORKING MODEL
         messages: [
           {
             role: "system",
             content: `
 You are DB GPT — AI Career Assistant.
 
-You help with:
-- Jobs
-- Interview preparation
-- Mock interviews
-- Resume building
-- Career advice
-
-STYLE:
-- Talk like a human (Hindi + English mix)
-- Keep answers short (2–4 lines)
-- Ask only ONE question at a time
-- Don't repeat questions
-- Be smart, not robotic
-
-IMPORTANT:
-- Never say "You said"
-- Always move conversation forward
+Rules:
+- Never repeat questions
+- Ask next logical question
+- Be human, short, smart
+- Help with jobs, resume, interviews
+- If user says mock interview → start questions automatically
+- Don't say "You said"
 `
           },
           {
             role: "user",
             content: message
           }
-        ]
+        ],
+        temperature: 0.7,
+        max_tokens: 500
       })
     });
 
-    // 🧠 RESPONSE PARSE
     const data = await res.json();
 
-    // 🔍 DEBUG LOGS (VERY IMPORTANT)
-    console.log("STATUS:", res.status);
-    console.log("AI RESPONSE:", JSON.stringify(data, null, 2));
+    // 🔥 DEBUG (IMPORTANT)
+    console.log("GROQ RESPONSE:", JSON.stringify(data));
 
-    // ✅ SUCCESS RESPONSE
-    if(data?.choices?.[0]?.message?.content){
-      return data.choices[0].message.content.trim();
+    if (data.error) {
+      return "AI Error: " + data.error.message;
     }
 
-    // ❌ अगर API response गलत आया
-    if(data?.error){
-      return `AI Error: ${data.error.message}`;
-    }
+    return data.choices?.[0]?.message?.content || "No response from AI";
 
-    return "AI response issue ❌";
-
-  }catch(err){
-    console.log("🔥 AI ERROR:", err);
-    return "AI error ❌";
+  } catch (err) {
+    console.log("AI ERROR:", err.message);
+    return "Server error ❌";
   }
 }
 
