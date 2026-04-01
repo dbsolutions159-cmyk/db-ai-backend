@@ -1,34 +1,8 @@
 const fetch = require("node-fetch");
 
-const userMemory = {};
+async function getAIResponse(userId, message){
 
-async function getAIResponse(userId, message) {
-  try {
-
-    // 👉 user memory init
-    if (!userMemory[userId]) {
-      userMemory[userId] = [
-        {
-          role: "system",
-          content: `
-You are DB GPT — AI Career Assistant.
-
-Rules:
-- Never repeat same question
-- Remember previous answers
-- Ask next logical question
-- Take full mock interviews
-- Be human & short
-`
-        }
-      ];
-    }
-
-    // 👉 add user message
-    userMemory[userId].push({
-      role: "user",
-      content: message
-    });
+  try{
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -37,30 +11,54 @@ Rules:
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: userMemory[userId],
-        temperature: 0.7
+        model: "llama3-70b-8192",
+        messages: [
+          {
+            role: "system",
+            content: `
+You are DB Hire AI — a professional career assistant.
+
+RULES:
+- Speak like expert + friendly
+- Give structured answers
+- No repeat questions
+- No short useless replies
+- Always provide value
+
+FOR RESUME:
+- Write full professional resume
+- Minimum 6-10 lines
+- Proper sections:
+  Name, Skills, Experience, Summary
+
+FOR JOB:
+- Suggest best jobs
+- Explain why match
+
+FOR INTERVIEW:
+- Ask smart questions
+- Give feedback + score
+
+Tone:
+- Professional but friendly
+- Clear and helpful
+`
+          },
+          {
+            role: "user",
+            content: message
+          }
+        ]
       })
     });
 
     const data = await res.json();
 
-    if (data.error) {
-      return "AI Error: " + data.error.message;
-    }
+    return data?.choices?.[0]?.message?.content || "AI error";
 
-    const reply = data.choices?.[0]?.message?.content || "No response";
-
-    // 👉 save AI reply also
-    userMemory[userId].push({
-      role: "assistant",
-      content: reply
-    });
-
-    return reply;
-
-  } catch (err) {
-    return "Server error ❌";
+  }catch(err){
+    console.log("AI ERROR:", err.message);
+    return "AI error ❌";
   }
 }
 
