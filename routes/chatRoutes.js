@@ -13,8 +13,7 @@ function getMemory(userId){
       role: null,
       intent: null,
       step: 0,
-      lastAnswer: null,
-      resume: { step: 0 }
+      resumeData: ""
     };
   }
   return memoryStore[userId];
@@ -23,10 +22,11 @@ function getMemory(userId){
 // ================= INTENT =================
 function detectIntent(msg){
   msg = (msg || "").toLowerCase();
+
   if(msg.includes("job")) return "job";
   if(msg.includes("resume")) return "resume";
-  if(msg.includes("interview")) return "interview";
-  if(msg.includes("mock")) return "mock";
+  if(msg.includes("interview") || msg.includes("mock")) return "mock";
+
   return "chat";
 }
 
@@ -41,7 +41,7 @@ router.post("/chat", async (req, res) => {
       return res.json({ reply: "Message required ❌" });
     }
 
-    console.log("Incoming:", message);
+    console.log("User:", message);
 
     const memory = getMemory(userId);
 
@@ -50,45 +50,56 @@ router.post("/chat", async (req, res) => {
 
     const activeIntent = memory.intent;
 
-    // ================= RESUME BUILDER =================
+    // ================= JOB FETCH =================
+    if(activeIntent === "job"){
+
+      const jobs = await Job.find().limit(5);
+
+      console.log("Jobs found:", jobs.length);
+
+      if(!jobs.length){
+        return res.json({ reply: "❌ No jobs available right now" });
+      }
+
+      let reply = "🔥 Top Jobs For You 👇\n\n";
+
+      jobs.forEach((job, i) => {
+        reply += `${i+1}. ${job.title}\n🏢 ${job.company}\n📍 ${job.location}\n🔗 ${job.url}\n\n`;
+      });
+
+      memory.intent = null;
+
+      return res.json({ reply });
+    }
+
+    // ================= RESUME (PRO AI) =================
     if(activeIntent === "resume"){
 
-      memory.resume.step++;
+      const prompt = `
+Create a professional resume using this information:
 
-      if(memory.resume.step === 1){
-        return res.json({ reply: "Let’s build your resume 👍\nWhat is your full name?" });
-      }
+${message}
 
-      if(memory.resume.step === 2){
-        memory.resume.name = message;
-        return res.json({ reply: "Your skills?" });
-      }
-
-      if(memory.resume.step === 3){
-        memory.resume.skills = message;
-        return res.json({ reply: "Your experience?" });
-      }
-
-      if(memory.resume.step === 4){
-        memory.resume.experience = message;
-
-        const resumeText = `
-Name: ${memory.resume.name}
-
-Skills:
-${memory.resume.skills}
-
-Experience:
-${memory.resume.experience}
+Rules:
+- Minimum 8-12 lines
+- Add sections:
+  Name
+  Summary
+  Skills
+  Experience
+  Strengths
+- Make it professional and clean
 `;
 
-        memory.resume.step = 0;
+      const resume = await getAIResponse(userId, prompt);
 
-        return res.json({
-          reply: "Resume ready 👇 Download below",
-          resume: resumeText
-        });
-      }
+      memory.resumeData = resume;
+      memory.intent = null;
+
+      return res.json({
+        reply: "✅ Professional Resume Ready",
+        resume
+      });
     }
 
     // ================= MOCK INTERVIEW =================
@@ -96,7 +107,9 @@ ${memory.resume.experience}
 
       if(!memory.role){
         memory.role = message;
-        return res.json({ reply: "Starting interview 👍\nTell me about yourself" });
+        return res.json({
+          reply: `Great 👍 Starting ${memory.role} interview\n\n👉 Tell me about yourself`
+        });
       }
 
       memory.step++;
@@ -104,10 +117,14 @@ ${memory.resume.experience}
       if(memory.step > 5){
         memory.step = 0;
         memory.role = null;
-        return res.json({ reply: "Interview complete 🎉" });
+        memory.intent = null;
+
+        return res.json({
+          reply: "🎉 Interview completed — You did well!"
+        });
       }
 
-      const scorePrompt = `
+      const feedback = await getAIResponse(userId, `
 Evaluate this answer:
 
 "${message}"
@@ -115,29 +132,28 @@ Evaluate this answer:
 Give:
 - Score /10
 - 1 improvement
-`;
+`);
 
-      let feedback = await getAIResponse(userId, scorePrompt);
-      let nextQ = await getAIResponse(userId, `Ask next interview question for ${memory.role}`);
+      const nextQ = await getAIResponse(userId, `
+Ask next interview question for ${memory.role}
+`);
 
       return res.json({
-        reply: `${feedback}\n\nNext 👇\n${nextQ}`
+        reply: `${feedback}\n\n👉 Next Question:\n${nextQ}`
       });
     }
 
-    // ================= NORMAL CHAT =================
-    let aiReply = await getAIResponse(userId, message);
-
-    console.log("AI:", aiReply);
+    // ================= NORMAL AI =================
+    const aiReply = await getAIResponse(userId, message);
 
     return res.json({
-      reply: aiReply || "No response 🤖"
+      reply: aiReply || "🤖 No response"
     });
 
   }catch(err){
     console.log("CHAT ERROR:", err.message);
     return res.json({
-      reply: "Server error ❌ try again"
+      reply: "Server error ❌"
     });
   }
 
