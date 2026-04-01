@@ -9,7 +9,7 @@ async function getAIResponse(userId, message) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama3-70b-8192", // ✅ WORKING MODEL
+        model: "llama-3.1-8b-instant", // ✅ WORKING MODEL
         messages: [
           {
             role: "system",
