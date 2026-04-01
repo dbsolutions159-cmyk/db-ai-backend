@@ -3,10 +3,53 @@ const router = express.Router();
 const Job = require("../models/job");
 const getAIResponse = require("../services/aiService");
 
-// 🧠 MEMORY
+// ================= MEMORY =================
 const userMemory = {};
 
-// 🔍 INTENT DETECT
+function getMemory(userId){
+  if(!userMemory[userId]){
+    userMemory[userId] = {
+      role: null,
+      location: null,
+      experience: null,
+      intent: null,
+      step: 0,
+      lastAction: null,
+      lastAnswer: null
+    };
+  }
+  return userMemory[userId];
+}
+
+// ================= UPDATE MEMORY =================
+function updateMemory(memory, message){
+
+  const msg = message.toLowerCase();
+
+  // ROLE
+  if(msg.includes("bpo") || msg.includes("customer")){
+    memory.role = "customer support";
+  }
+  if(msg.includes("sales")){
+    memory.role = "sales";
+  }
+  if(msg.includes("developer")){
+    memory.role = "developer";
+  }
+
+  // LOCATION
+  if(msg.includes("bhopal")) memory.location = "bhopal";
+  if(msg.includes("indore")) memory.location = "indore";
+
+  // EXPERIENCE
+  if(msg.includes("fresher")) memory.experience = "fresher";
+  if(msg.includes("1 year")) memory.experience = "1 year";
+  if(msg.includes("2 year")) memory.experience = "2 years";
+
+  memory.lastAnswer = message;
+}
+
+// ================= INTENT =================
 function detectIntent(msg){
   msg = msg.toLowerCase();
 
@@ -18,6 +61,7 @@ function detectIntent(msg){
   return "general";
 }
 
+// ================= CHAT API =================
 router.post("/chat", async (req, res) => {
 
   try {
@@ -28,32 +72,33 @@ router.post("/chat", async (req, res) => {
       return res.json({ reply: "Message required ❌" });
     }
 
-    // 🧠 MEMORY INIT
-    if(!userMemory[userId]){
-      userMemory[userId] = {};
-    }
-
-    const memory = userMemory[userId];
-    const msg = message.toLowerCase();
-
-    // 🔥 UPDATE MEMORY
-    if(msg.includes("bpo")) memory.role = "bpo";
-    if(msg.includes("sales")) memory.role = "sales";
-    if(msg.includes("developer")) memory.role = "developer";
-
-    if(msg.includes("bhopal")) memory.location = "bhopal";
-    if(msg.includes("indore")) memory.location = "indore";
+    const memory = getMemory(userId);
+    updateMemory(memory, message);
 
     const intent = detectIntent(message);
+    memory.intent = intent;
 
-    // ================= JOB FLOW =================
-    if(intent === "job"){
+    // ================= NO REPEAT =================
+    if(memory.lastAction === "ask_role" && memory.role){
+      memory.lastAction = null;
+    }
+
+    if(memory.lastAction === "ask_location" && memory.location){
+      memory.lastAction = null;
+    }
+
+    // ================= JOB =================
+    if(intent === "job" || memory.intent === "job"){
+
+      memory.intent = "job";
 
       if(!memory.role){
+        memory.lastAction = "ask_role";
         return res.json({ reply: "Kis role me job chahiye?" });
       }
 
       if(!memory.location){
+        memory.lastAction = "ask_location";
         return res.json({ reply: "Kis city me job chahiye?" });
       }
 
@@ -83,15 +128,60 @@ router.post("/chat", async (req, res) => {
 
     // ================= INTERVIEW =================
     if(intent === "interview"){
+
+      if(!memory.role){
+        memory.lastAction = "ask_role";
+        return res.json({ reply: "Kis role ke liye interview hai?" });
+      }
+
       return res.json({
-        reply: "Kis role ke liye interview hai?"
+        reply: `Great 👍 ${memory.role} interview ke liye ready ho jao.
+
+👉 Tell me about yourself`
       });
     }
 
-    // ================= MOCK =================
-    if(intent === "mock"){
+    // ================= 🔥 AI MOCK INTERVIEW =================
+    if(intent === "mock" || memory.intent === "mock"){
+
+      memory.intent = "mock";
+
+      if(!memory.role){
+        memory.lastAction = "ask_role";
+        return res.json({ reply: "Kis role ke liye mock interview dena hai?" });
+      }
+
+      memory.step = (memory.step || 0) + 1;
+
+      if(memory.step > 5){
+        memory.step = 0;
+        return res.json({
+          reply: "Interview complete 🎉 Great job!"
+        });
+      }
+
+      const prompt = `
+You are a professional interviewer.
+
+Take a mock interview for:
+Role: ${memory.role}
+Experience: ${memory.experience || "unknown"}
+
+Rules:
+- Ask only ONE question
+- Don't repeat questions
+- Start basic → then advanced
+- Make it realistic (HR + practical)
+- Ask based on previous answer
+
+Question number: ${memory.step}
+User last answer: ${memory.lastAnswer || "none"}
+`;
+
+      const aiReply = await getAIResponse(userId, prompt);
+
       return res.json({
-        reply: "Chalo mock start karte hain 👍 Tell me about yourself"
+        reply: aiReply
       });
     }
 
