@@ -41,7 +41,6 @@ mongoose.connect(process.env.MONGO_URI)
     console.log("❌ Job fetch error:", err.message);
   }
 }, 5000);
-  .catch(err => console.log("Mongo Error ❌", err.message));
 
 // 🔹 AUTO JOB FETCH (हर 6 घंटे)
 cron.schedule("0 */6 * * *", async () => {
