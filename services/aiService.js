@@ -1,23 +1,9 @@
 const fetch = require("node-fetch");
 
-const memory = {};
+async function getAIResponse(userId, message){
 
-async function getAIResponse(userId, message, jobs = []) {
-  try {
+  try{
 
-    // 🧠 memory store
-    if (!memory[userId]) memory[userId] = [];
-    memory[userId].push({ role: "user", content: message });
-
-    // 🧾 jobs context
-    let jobsText = "";
-    if (jobs.length > 0) {
-      jobsText = jobs.map(j =>
-        `${j.title} in ${j.location || "India"}`
-      ).join(", ");
-    }
-
-    // 🤖 API call (Groq)
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -25,39 +11,59 @@ async function getAIResponse(userId, message, jobs = []) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "llama3-70b-8192",
+        temperature: 0.7,
         messages: [
           {
             role: "system",
             content: `
-You are DB Job GPT.
+You are DB GPT — AI Career Assistant.
 
-Rules:
-- Talk like a friendly recruiter
-- Give short smart answers
-- Don't repeat questions
-- Use job data if available
-- Suggest next step
+You help with:
+- Jobs
+- Interview preparation
+- Mock interviews
+- Resume building
+- Career guidance
 
-Jobs available:
-${jobsText}
+STYLE:
+- Talk like a human (friendly Hindi + English mix)
+- Keep answers short (2–4 lines max)
+- Ask only ONE question at a time
+- Never repeat same question
+- Always move conversation forward
+
+BEHAVIOR:
+- If user is confused → guide step by step
+- If user asks random question → answer normally
+- If user is in flow → continue flow
+
+IMPORTANT:
+- Never say "You said"
+- Never repeat sentences
+- Be smart, not robotic
 `
           },
-          ...memory[userId].slice(-5) // last 5 messages
+          {
+            role: "user",
+            content: message
+          }
         ]
       })
     });
 
     const data = await res.json();
 
-    const reply = data?.choices?.[0]?.message?.content || "Try again";
+    // 🔥 SAFE RESPONSE
+    if(data?.choices?.[0]?.message?.content){
+      return data.choices[0].message.content;
+    }
 
-    memory[userId].push({ role: "assistant", content: reply });
+    console.log("AI RAW ERROR:", data);
+    return "AI thoda busy hai, try again 👍";
 
-    return reply;
-
-  } catch (err) {
-    console.log(err);
+  }catch(err){
+    console.log("AI ERROR:", err);
     return "AI error ❌";
   }
 }
