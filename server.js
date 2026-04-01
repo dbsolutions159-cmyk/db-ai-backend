@@ -11,7 +11,7 @@ const fetchJobs = require("./services/jobFetcher");
 // 🔹 Routes
 const chatRoutes = require("./routes/chatRoutes");
 const authRoutes = require("./routes/authRoutes");
-
+const candidateRoutes = require("./routes/candidateRoutes");
 const app = express();
 
 // 🔹 Middleware
@@ -21,6 +21,7 @@ app.use(express.json());
 // 🔹 Routes use
 app.use("/api/chat", chatRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/candidate", candidateRoutes);
 
 // 🔹 Test route
 app.get("/", (req, res) => {
