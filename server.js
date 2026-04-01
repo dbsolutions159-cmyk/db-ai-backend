@@ -3,41 +3,45 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const cron = require("node-cron");
 
-
-const app = express();
-
-// 🔹 Middleware
-app.use(express.json());
-app.use(cors());
+// 🔥 IMPORT JOB FETCHER
+const fetchJobs = require("./services/jobFetcher");
 
 // 🔹 Routes
 const chatRoutes = require("./routes/chatRoutes");
 const authRoutes = require("./routes/authRoutes");
-const jobRoutes = require("./routes/jobRoutes");
 
+const app = express();
+
+// 🔹 Middleware
+app.use(cors());
+app.use(express.json());
+
+// 🔹 Routes use
 app.use("/api", chatRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api", jobRoutes);
 
-// 🔹 Root Test Route
+// 🔹 Test route
 app.get("/", (req, res) => {
   res.send("DB Backend Running 🚀");
 });
 
-// 🔹 MongoDB Connection
+// 🔹 MongoDB Connect + FIRST RUN
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log("MongoDB Connected ✅");
-  })
-  .catch((err) => {
-    console.log("Mongo Error ❌", err.message);
-  });
 
-// 🔹 Global Error Handler (safe)
-app.use((err, req, res, next) => {
-  console.error("Global Error:", err);
-  res.status(500).json({ error: "Something went wrong ❌" });
+    // 🔥 FIRST TIME JOB FETCH
+    await fetchJobs();
+
+  })
+  .catch(err => console.log("Mongo Error ❌", err.message));
+
+// 🔹 AUTO JOB FETCH (हर 6 घंटे)
+cron.schedule("0 */6 * * *", async () => {
+  console.log("⏳ Auto fetching jobs...");
+  await fetchJobs();
 });
 
 // 🔹 Start Server
