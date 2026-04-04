@@ -1,49 +1,46 @@
 require("dotenv").config();
 
 const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors"); // ✅ MISSING था (CRASH का reason)
+const cors = require("cors");
 const cron = require("node-cron");
 
-// 🔥 IMPORT JOB FETCHER
-const fetchJobs = require("./services/jobFetcher");
+const app = express();
 
-// 🔹 Routes
+// 🔥 ROUTES
 const chatRoutes = require("./routes/chatRoutes");
 const authRoutes = require("./routes/authRoutes");
 const candidateRoutes = require("./routes/candidateRoutes");
-const app = express();
+
+// 🔥 SERVICES
+const fetchJobs = require("./services/jobFetcher");
 
 // 🔹 Middleware
 app.use(cors());
 app.use(express.json());
 
-// 🔹 Routes use
+// 🔹 Health Check (IMPORTANT for Railway)
+app.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "DB GPT Backend Running 🚀"
+  });
+});
+
+// 🔹 Routes
 app.use("/api/chat", chatRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/candidate", candidateRoutes);
 
-// 🔹 Test route
-app.get("/", (req, res) => {
-  res.send("DB Backend Running 🚀");
-});
+// 🔥 JOB FETCH SYSTEM (NO DB DEPENDENCY REQUIRED)
+async function startJobSystem() {
+  try {
+    console.log("⏳ Fetching initial jobs...");
 
-// 🔹 MongoDB Connect + SERVER START
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB Connected ✅");
+    await fetchJobs();
 
-    // 🔥 FIRST TIME JOB FETCH (safe delay)
-    setTimeout(async () => {
-      try {
-        await fetchJobs();
-        console.log("🔥 Initial jobs fetched");
-      } catch (err) {
-        console.log("❌ Job fetch error:", err.message);
-      }
-    }, 5000);
+    console.log("🔥 Initial jobs fetched");
 
-    // 🔹 AUTO JOB FETCH (हर 6 घंटे)
+    // 🔹 Auto fetch every 6 hours
     cron.schedule("0 */6 * * *", async () => {
       console.log("⏳ Auto fetching jobs...");
       try {
@@ -53,14 +50,27 @@ mongoose.connect(process.env.MONGO_URI)
       }
     });
 
-    // 🔹 Start Server (DB connect के बाद)
-    const PORT = process.env.PORT || 10000;
+  } catch (err) {
+    console.log("❌ Job system error:", err.message);
+  }
+}
 
-    app.listen(PORT, () => {
-      console.log("Server running on port " + PORT);
-    });
+// 🔥 GLOBAL ERROR HANDLER (IMPORTANT)
+app.use((err, req, res, next) => {
+  console.error("❌ Server Error:", err.stack);
 
-  })
-  .catch(err => {
-    console.log("❌ MongoDB Connection Error:", err.message);
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error"
   });
+});
+
+// 🔥 SERVER START (Railway Compatible)
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, async () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+
+  // 🔥 Start background job system
+  await startJobSystem();
+});
